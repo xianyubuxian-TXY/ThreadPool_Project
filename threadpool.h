@@ -4,6 +4,7 @@
 #include<iostream>
 #include<vector>
 #include<queue>
+#include<unordered_map>
 #include<memory>
 #include<atomic>
 //线程中的线程与用户提交的线程会同时操作任务队列，所以需要线程的“互斥”、“同步”机制
@@ -141,15 +142,20 @@ enum class PoolMode{
 class Thread{
 public:
     //线程函数对象类型
-    using ThreadFunc = std::function<void()>;
+    using ThreadFunc = std::function<void(int)>;
     
     Thread(ThreadFunc func);
     ~Thread();
 
     //启动线程
     void start();
+
+    //获取线程id
+    int getId() const;
 private:
     ThreadFunc func_;
+    static int generateId_; //确保每个线程id不同，用一个”静态成员“即可(类外初始化)
+    int threadId_; //保存线程id
 };
 
 /*
@@ -176,9 +182,12 @@ public:
 
     //设置线程池的工作模式
     void setMode(PoolMode mode);
+
+    //设置线程数量阈值
+    void setThreadSizeThreshHold(int threshhold);
     
     //设置task任务队列阈值
-    void setTaskQuemaxThreshHead(int threshhold);
+    void setTaskQuemaxThreshHold(int threshhold);
 
     //给线程池提交任务
     Result submitTask(std::shared_ptr<Task> sp);
@@ -194,14 +203,18 @@ private:
     //定义线程函数：
     //1.线程由线程池创建，故线程能使用的函数由线程池提供
     //2.方便线程函数访问线程池中的变量
-    void threadFunc(); //含有参数：this指针
+    void threadFunc(int threadId); //含有参数：this指针
 
     //检查pool的运行状态（可能多个地方调用，且都是内部方法）
     bool checkRunningState() const;
 private:
     //池内线程相关
-    std::vector<std::unique_ptr<Thread>> threads_; //线程列表
+    // std::vector<std::unique_ptr<Thread>> threads_; //线程列表
+    std::unordered_map<int,std::unique_ptr<Thread>> threads_; //线程列表
     std::size_t initThreadSize_; //初始线程数量 
+    std::atomic_int curThreadSize_; //当前线程池中的总数量
+    std::atomic_int idleThreadSize_; //空闲线程数量(cached模式使用)
+    int threadSizeThreshHold_; //线程数量的阈值(cached模式才可设置)
 
     //池内任务相关
     std::queue<std::shared_ptr<Task>> taskQue_; //任务队列
@@ -212,8 +225,9 @@ private:
     std::mutex taskQueMtx_; //保证任务队列的线程安全
     std::condition_variable notFull_; //表示任务队列不满
     std::condition_variable notEmpty_;  //表示任务队列不空
+    std::condition_variable exitCond_; //等待线程资源全部回收
 
-    //线程池工作属性
+    //线程池状态
     PoolMode poolMode_; //当前线程池的工作模式
     std::atomic_bool isPoolRunning_; //当前线程是否已经开始（开始后不允许在设置Mode）
 };
