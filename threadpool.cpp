@@ -22,13 +22,19 @@ ThreadPool::~ThreadPool()
 {
     isPoolRunning_=false;
 
+    /* 如果先“唤醒”，再“lock”，仍存在死锁问题
     //唤醒所有等待状态的线程（用于回收等待状态的线程）
     notEmpty_.notify_all();
-
     //对于正在执行任务中的线程，在执行完任务后，发现isPoolRunning=false，会自动跳出while循环,在while循环外进行回收即可
-
     //等待线程池中所有的任务返回： 有两种状态： 阻塞 & 正在执行任务中
     std::unique_lock<std::mutex> lock(taskQueMtx_);
+    */
+    
+    //先锁定+“双重判断”
+    //再“唤醒”
+    std::unique_lock<std::mutex> lock(taskQueMtx_);
+    notEmpty_.notify_all();
+
     exitCond_.wait(lock,[&]()->bool{return threads_.size()==0;});
 }
 
@@ -139,7 +145,8 @@ void ThreadPool::threadFunc(int threadId){
             std::cout<<"tid: "<<std::this_thread::get_id()<<" 尝试获取任务..."<<std::endl;
                            
             //没有任务时，轮询
-            while(taskQue_.size()==0){
+            //双重判断isPoolRunning
+            while(isPoolRunning_ && taskQue_.size()==0){
                 //cached模式下，有可能额外创建了很多线程，如果空闲时间超过60s，应该把多余的线程
                 //结束回收掉（超过initThreadSize_数量的线程要进行回收）
                 //当前时间 - 上一次线程执行的时间 > 60s
@@ -179,19 +186,23 @@ void ThreadPool::threadFunc(int threadId){
                 }
 
                 //如果被唤醒但处于”!isPoolRunning“状态——>由~ThreadPoool析构函数唤醒，则回收该线程（处理等待状态的线程）
-                if(!isPoolRunning_){
-                    threads_.erase(threadId); //不能传入this_thread::get_id()
-                    //修改线程数量相关变量
-                    curThreadSize_--;
-                    idleThreadSize_--;
+                // if(!isPoolRunning_){
+                //     threads_.erase(threadId); //不能传入this_thread::get_id()
+                //     //修改线程数量相关变量
+                //     curThreadSize_--;
+                //     idleThreadSize_--;
 
-                    //创建时使用this_thread::get_id,这里打印也就使用this_thread::get_id
-                    std::cout<<"threadId: "<<std::this_thread::get_id()<<"exit!"<<std::endl;
-                    exitCond_.notify_all();
-                    return; //直接返回，退出for循环，线程结束
-                }
+                //     //创建时使用this_thread::get_id,这里打印也就使用this_thread::get_id
+                //     std::cout<<"threadId: "<<std::this_thread::get_id()<<"exit!"<<std::endl;
+                //     exitCond_.notify_all();
+                //     return; //直接返回，退出for循环，线程结束
+                // }
             }
 
+            //退出最外层循环
+            if(!isPoolRunning_){
+                break;
+            }
 
 
             idleThreadSize_--; //分配任务：空闲线程数量-1
