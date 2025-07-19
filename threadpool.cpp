@@ -111,6 +111,9 @@ void ThreadPool::start(int initThreadSize){
     initThreadSize_=initThreadSize;
     curThreadSize_=initThreadSize_;
 
+    //此次线程池线程的起始threadId(避免同时启动多个线程池出现错误)
+    int firstThreadId=Thread::getGenerateId();
+
     // 创建线程对象
     for(int i=0;i<initThreadSize_;++i){
         //创建thread线程对象时，用“绑定器”将“线程函数”绑定为一个“函数对象”，然后传给thread线程对象
@@ -125,8 +128,9 @@ void ThreadPool::start(int initThreadSize){
 
     // 启动所有线程（与创建分开，让线程启动公平）
     for(int i=0;i<initThreadSize_;++i){
-        //因为unordered_map的键是从0开始分配，正好对应
-        threads_[i]->start();
+        //要提前记录firstThreadId，避免一个项目中启动多个线程池出现错误
+        int threadId=firstThreadId+i;
+        threads_[threadId]->start();
         idleThreadSize_++; //空闲线程数量+1：只是启动，还未分配任务
     }
 }
@@ -136,7 +140,7 @@ void ThreadPool::threadFunc(int threadId){
     //线程上一次执行完任务的时间
     auto lastTime=std::chrono::high_resolution_clock().now();
    
-    while(isPoolRunning_){
+    for(;;){
         std::shared_ptr<Task> task;
         {
             //先获取锁
@@ -146,7 +150,20 @@ void ThreadPool::threadFunc(int threadId){
                            
             //没有任务时，轮询
             //双重判断isPoolRunning
-            while(isPoolRunning_ && taskQue_.size()==0){
+            while(taskQue_.size()==0){
+
+                if(!isPoolRunning_){
+                    //执行完任务的线程发现isPoolRunning_=false：会自动跳出循环，进而进行回收
+                    threads_.erase(threadId); //不能传入this_thread::get_id()
+                    //修改线程数量相关变量
+                    curThreadSize_--;
+                    idleThreadSize_--;
+                    //创建时使用this_thread::get_id,这里打印也就使用this_thread::get_id
+                    std::cout<<"threadId: "<<std::this_thread::get_id()<<"exit!"<<std::endl;
+                    exitCond_.notify_all();
+                    return;//线程函数借宿线程结束
+                }
+
                 //cached模式下，有可能额外创建了很多线程，如果空闲时间超过60s，应该把多余的线程
                 //结束回收掉（超过initThreadSize_数量的线程要进行回收）
                 //当前时间 - 上一次线程执行的时间 > 60s
@@ -199,17 +216,10 @@ void ThreadPool::threadFunc(int threadId){
                 // }
             }
 
-            //退出最外层循环
-            if(!isPoolRunning_){
-                break;
-            }
-
-
+            //执行任务
             idleThreadSize_--; //分配任务：空闲线程数量-1
-            
             std::cout<<"tid: "<<std::this_thread::get_id()<<" 获取任务成功..."<<std::endl;
-            
-            
+
             //从任务队列中取一个任务出来
             task=taskQue_.front();
             taskQue_.pop();
@@ -236,15 +246,6 @@ void ThreadPool::threadFunc(int threadId){
         lastTime=std::chrono::high_resolution_clock().now();//更新线程执行完任务的时间
 
     }
-
-    //执行完任务的线程发现isPoolRunning_=false：会自动跳出循环，进而进行回收
-    threads_.erase(threadId); //不能传入this_thread::get_id()
-    //修改线程数量相关变量
-    curThreadSize_--;
-    idleThreadSize_--;
-    //创建时使用this_thread::get_id,这里打印也就使用this_thread::get_id
-    std::cout<<"threadId: "<<std::this_thread::get_id()<<"exit!"<<std::endl;
-    exitCond_.notify_all();
 }
 
 bool ThreadPool::checkRunningState()const{
@@ -274,6 +275,10 @@ Thread::~Thread(){}
 
 int Thread::getId() const{
     return threadId_;
+}
+
+int Thread::getGenerateId() {
+    return generateId_;
 }
 
 //启动线程

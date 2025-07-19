@@ -152,6 +152,9 @@ public:
 
     //获取线程id
     int getId() const;
+
+    //获取generateId_
+    static int getGenerateId();
 private:
     ThreadFunc func_;
     static int generateId_; //确保每个线程id不同，用一个”静态成员“即可(类外初始化)
@@ -161,6 +164,7 @@ private:
 /*
 example:
 ThreadPool pool;
+pool.setMode(PoolMode::MODE_FIXED |PoolMode::MDOE_ACHACED); //默认为fixed模式
 pool.start(4);
 
 class MyTask:public Task{

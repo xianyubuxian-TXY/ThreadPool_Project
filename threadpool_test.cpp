@@ -32,9 +32,21 @@ int main(){
         Result res1=pool.submitTask(std::make_shared<MyTask>(1,1000000000));
         uLong sum1=res1.get().cast_<uLong>();
         std::cout<<sum1<<std::endl;
-        std::cout<<"main over!"<<std::endl;
+
     }
 
+    // std::this_thread::sleep_for(std::chrono::seconds(5));
+    // {
+    //     ThreadPool pool1;
 
+    //     pool1.start(4);
+
+    //     Result res1=pool1.submitTask(std::make_shared<MyTask>(1,1000000000));
+    //     uLong sum1=res1.get().cast_<uLong>();
+    //     std::cout<<sum1<<std::endl;
+
+    // }
+
+    std::cout<<"main over!"<<std::endl;
     return 0;
 }
