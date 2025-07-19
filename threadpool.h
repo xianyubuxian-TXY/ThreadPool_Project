@@ -193,7 +193,9 @@ public:
     Result submitTask(std::shared_ptr<Task> sp);
 
     //开启线程池(参数为初始线程数量,默认为4)
-    void start(int initThreadSize=4);
+    //void start(int initThreadSize=4);
+    //开启线程池(参数为初始线程数量,默认为"内核数量")
+    void start(int initThreadSize=std::thread::hardware_concurrency());
 
     //线程池不允许“拷贝”与“复制”（成员太复杂了）
     ThreadPool(const ThreadPool&) = delete;

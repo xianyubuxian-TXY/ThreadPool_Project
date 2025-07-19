@@ -24,6 +24,16 @@ private:
 };
 
 int main(){
+
+    ThreadPool pool;
+
+    pool.start(4);
+
+    Result res1=pool.submitTask(std::make_shared<MyTask>(1,1000000000));
+    uLong sum1=res1.get().cast_<uLong>();
+    std::cout<<sum1<<std::endl;
+    std::cout<<"main over!"<<std::endl;
+#if 0
     {
         ThreadPool pool;
         pool.setMode(PoolMode::MDOE_ACHACED);
@@ -45,7 +55,7 @@ int main(){
         //Master线程合并各个任务结果，输出结果
         std::cout<<(sum1+sum2+sum3)<<std::endl;
     }
-
+#endif
 
     return 0;
 }
