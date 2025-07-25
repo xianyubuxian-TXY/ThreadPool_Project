@@ -78,7 +78,7 @@ Result ThreadPool::submitTask(std::shared_ptr<Task> sp){
     notEmpty_.notify_all();
 
     //cached模式：任务处理比较紧急  场景：小而快的任务， 需要根据任务数量和空闲线程的数量，判断是否需要增加/删除线程
-    if(poolMode_==PoolMode::MDOE_ACHACED  //线程池工作在cached模式
+    if(poolMode_==PoolMode::MDOE_CACHED  //线程池工作在cached模式
         && taskSize_>idleThreadSize_      //任务数量大于空闲线程数量
         && curThreadSize_<threadSizeThreshHold_)  //当前线程池内线程数量小于线程数量阈值
     {
@@ -167,7 +167,7 @@ void ThreadPool::threadFunc(int threadId){
                 //cached模式下，有可能额外创建了很多线程，如果空闲时间超过60s，应该把多余的线程
                 //结束回收掉（超过initThreadSize_数量的线程要进行回收）
                 //当前时间 - 上一次线程执行的时间 > 60s
-                if(poolMode_==PoolMode::MDOE_ACHACED)
+                if(poolMode_==PoolMode::MDOE_CACHED)
                 {
                     //每秒返回一次   怎么区分：超时返回？还是有任务待执行返回
                     //.wait_for()方法的返回值可以区分是否超时
@@ -257,7 +257,7 @@ void ThreadPool::setThreadSizeThreshHold(int threshhold){
     if(checkRunningState())
         return;
     //cached模式才可设置阈值，fixed没必要修改
-    if(poolMode_==PoolMode::MDOE_ACHACED){
+    if(poolMode_==PoolMode::MDOE_CACHED){
         threadSizeThreshHold_=threshhold;
     }
 

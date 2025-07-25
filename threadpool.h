@@ -135,7 +135,7 @@ private:
 //线程池支持的模式
 enum class PoolMode{
     MODE_FIXED, //固定数量的线程
-    MDOE_ACHACED, //线程数量可动态增长
+    MDOE_CACHED, //线程数量可动态增长
 
 };
 
